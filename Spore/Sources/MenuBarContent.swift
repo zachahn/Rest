@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MenuBarContent: View {
     @Bindable var monitor: IdleMonitor
+    var launchAtLogin: LaunchAtLogin
 
     var body: some View {
         Toggle("Sleep When Idle", isOn: $monitor.isEnabled)
@@ -11,6 +12,14 @@ struct MenuBarContent: View {
                 Text(formatDuration(interval)).tag(interval)
             }
         }
+
+        Toggle(
+            "Launch at Login",
+            isOn: Binding(
+                get: { launchAtLogin.isEnabled },
+                set: { launchAtLogin.setEnabled($0) })
+        )
+        .onAppear { launchAtLogin.refresh() }
 
         Divider()
 

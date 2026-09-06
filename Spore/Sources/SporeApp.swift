@@ -4,10 +4,11 @@ import SwiftUI
 struct SporeApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var monitor = IdleMonitor.shared
+    @State private var launchAtLogin = LaunchAtLogin.shared
 
     var body: some Scene {
         MenuBarExtra {
-            MenuBarContent(monitor: monitor)
+            MenuBarContent(monitor: monitor, launchAtLogin: launchAtLogin)
         } label: {
             Image(systemName: monitor.isEnabled ? "moon.zzz.fill" : "moon.zzz")
         }
