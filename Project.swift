@@ -8,7 +8,12 @@ let project = Project(
             destinations: .macOS,
             product: .app,
             bundleId: "dev.tuist.Spore",
-            infoPlist: .default,
+            deploymentTargets: .macOS("14.0"),
+            infoPlist: .extendingDefault(with: [
+                // Menu bar only: no Dock icon, no windows at launch.
+                "LSUIElement": true,
+                "NSMainStoryboardFile": "",
+            ]),
             buildableFolders: [
                 "Spore/Sources",
                 "Spore/Resources",
@@ -20,6 +25,7 @@ let project = Project(
             destinations: .macOS,
             product: .unitTests,
             bundleId: "dev.tuist.SporeTests",
+            deploymentTargets: .macOS("14.0"),
             infoPlist: .default,
             buildableFolders: [
                 "Spore/Tests"
