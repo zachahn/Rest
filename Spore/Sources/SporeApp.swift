@@ -11,10 +11,6 @@ struct SporeApp: App {
         } label: {
             Image(systemName: monitor.isEnabled ? "moon.zzz.fill" : "moon.zzz")
         }
-
-        Settings {
-            SettingsView(monitor: monitor)
-        }
     }
 }
 

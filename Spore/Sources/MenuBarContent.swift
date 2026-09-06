@@ -20,7 +20,6 @@ struct MenuBarContent: View {
 
         Button("Sleep Now") { monitor.sleepNow() }
         Button("Reset Timer") { monitor.restartCountdown() }
-        SettingsLink { Text("Settings…") }
 
         Divider()
 
@@ -35,8 +34,9 @@ struct MenuBarContent: View {
         return "Idle \(formatDuration(monitor.idleSeconds)) · sleeps in \(formatDuration(monitor.secondsRemaining))"
     }
 
-    /// Presets, plus whatever custom value the settings window may hold, so the
-    /// picker always has a row matching the current selection.
+    /// Presets, plus the stored value in case it came from an older build that
+    /// allowed arbitrary intervals, so the picker always has a row matching the
+    /// current selection.
     private var intervalOptions: [TimeInterval] {
         Set(IdleMonitor.presetIntervals + [monitor.thresholdSeconds]).sorted()
     }

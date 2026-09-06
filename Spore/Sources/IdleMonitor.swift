@@ -25,12 +25,16 @@ final class IdleMonitor {
         .flagsChanged,
     ]
 
-    static let presetIntervals: [TimeInterval] = [60, 300, 600, 900, 1800, 2700, 3600]
+    static let presetIntervals: [TimeInterval] = [
+        60, 120, 300, 600, 900, 1200, 1800, 2700, 3600, 7200,
+    ]
 
-    /// Smallest interval that can be configured, so a stray keystroke in the
-    /// settings field can't put the machine to sleep instantly.
+    /// Floor on the configured interval, so a garbage value in the defaults
+    /// can't put the machine to sleep the moment it launches.
     static let minimumInterval: TimeInterval = 10
 
+    /// The value the menu renders. It deliberately stops advancing while a menu
+    /// is open — see `isMenuTracking`.
     private(set) var idleSeconds: TimeInterval = 0
 
     /// Set once sleep has been requested (or the system started sleeping for
@@ -68,6 +72,15 @@ final class IdleMonitor {
     private var countdownStart = Date()
     private var timer: Timer?
 
+    /// True while any menu is being tracked, including ours.
+    ///
+    /// Publishing a new `idleSeconds` rebuilds the menu, which tears down and
+    /// re-creates its items — an open submenu closes and the pointer lands on
+    /// nothing. So the displayed value freezes for as long as the menu is up.
+    /// It is deliberately not observed; nothing should redraw because tracking
+    /// started.
+    @ObservationIgnored private var isMenuTracking = false
+
     @ObservationIgnored private let defaults: UserDefaults
 
     private enum Key {
@@ -103,10 +116,23 @@ final class IdleMonitor {
             Task { @MainActor in self?.restartCountdown() }
         }
 
+        let center = NotificationCenter.default
+        center.addObserver(
+            forName: NSMenu.didBeginTrackingNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.isMenuTracking = true }
+        }
+        center.addObserver(
+            forName: NSMenu.didEndTrackingNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.isMenuTracking = false }
+        }
+
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
         }
-        // .common so the countdown keeps ticking while the menu is open.
+        // .common so the countdown keeps running while a menu is tracking; the
+        // sleep decision has to stay live even when the display is frozen.
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
         tick()
@@ -125,9 +151,12 @@ final class IdleMonitor {
     }
 
     private func tick() {
-        idleSeconds = measureIdleSeconds()
+        let idle = measureIdleSeconds()
+        if !isMenuTracking {
+            idleSeconds = idle
+        }
 
-        guard isEnabled, !sleepIsPending, idleSeconds >= thresholdSeconds else { return }
+        guard isEnabled, !sleepIsPending, idle >= thresholdSeconds else { return }
         sleepNow()
     }
 
