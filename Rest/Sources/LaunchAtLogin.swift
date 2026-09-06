@@ -35,7 +35,7 @@ final class LaunchAtLogin {
                 try service.unregister()
             }
         } catch {
-            NSLog("Spore: could not \(enabled ? "register" : "unregister") the login item: \(error.localizedDescription)")
+            NSLog("Rest: could not \(enabled ? "register" : "unregister") the login item: \(error.localizedDescription)")
         }
         // Whatever the outcome, show what the system actually holds — the
         // registration can be refused, or left pending the user's approval.

@@ -2,13 +2,13 @@ import CoreGraphics
 import Foundation
 import Testing
 
-@testable import Spore
+@testable import Rest
 
 @MainActor
 struct IdleMonitorTests {
     /// A throwaway defaults domain so tests never touch the real preferences.
     private func makeMonitor() -> (IdleMonitor, UserDefaults) {
-        let suite = "SporeTests.\(UUID().uuidString)"
+        let suite = "RestTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         return (IdleMonitor(defaults: defaults), defaults)
     }

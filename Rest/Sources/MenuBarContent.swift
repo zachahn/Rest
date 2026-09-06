@@ -28,7 +28,7 @@ struct MenuBarContent: View {
 
         Divider()
 
-        Button("Quit Spore") { NSApp.terminate(nil) }
+        Button("Quit Rest") { NSApp.terminate(nil) }
             .keyboardShortcut("q")
     }
 

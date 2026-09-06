@@ -17,10 +17,10 @@ enum SystemSleep {
                 try process.run()
                 process.waitUntilExit()
                 if process.terminationStatus != 0 {
-                    NSLog("Spore: pmset sleepnow exited with \(process.terminationStatus)")
+                    NSLog("Rest: pmset sleepnow exited with \(process.terminationStatus)")
                 }
             } catch {
-                NSLog("Spore: could not run pmset sleepnow: \(error.localizedDescription)")
+                NSLog("Rest: could not run pmset sleepnow: \(error.localizedDescription)")
             }
         }
     }

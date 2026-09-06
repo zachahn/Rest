@@ -1,13 +1,13 @@
 import ProjectDescription
 
 let project = Project(
-    name: "Spore",
+    name: "Rest",
     targets: [
         .target(
-            name: "Spore",
+            name: "Rest",
             destinations: .macOS,
             product: .app,
-            bundleId: "dev.tuist.Spore",
+            bundleId: "dev.tuist.Rest",
             deploymentTargets: .macOS("14.0"),
             infoPlist: .extendingDefault(with: [
                 // Menu bar only: no Dock icon, no windows at launch.
@@ -15,22 +15,22 @@ let project = Project(
                 "NSMainStoryboardFile": "",
             ]),
             buildableFolders: [
-                "Spore/Sources",
-                "Spore/Resources",
+                "Rest/Sources",
+                "Rest/Resources",
             ],
             dependencies: []
         ),
         .target(
-            name: "SporeTests",
+            name: "RestTests",
             destinations: .macOS,
             product: .unitTests,
-            bundleId: "dev.tuist.SporeTests",
+            bundleId: "dev.tuist.RestTests",
             deploymentTargets: .macOS("14.0"),
             infoPlist: .default,
             buildableFolders: [
-                "Spore/Tests"
+                "Rest/Tests"
             ],
-            dependencies: [.target(name: "Spore")]
+            dependencies: [.target(name: "Rest")]
         ),
     ]
 )

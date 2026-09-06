@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct SporeApp: App {
+struct RestApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var monitor = IdleMonitor.shared
     @State private var launchAtLogin = LaunchAtLogin.shared
