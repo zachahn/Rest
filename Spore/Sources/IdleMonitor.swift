@@ -39,17 +39,27 @@ final class IdleMonitor {
 
     var isEnabled: Bool {
         didSet {
-            UserDefaults.standard.set(isEnabled, forKey: Key.isEnabled)
+            defaults.set(isEnabled, forKey: Key.isEnabled)
             restartCountdown()
         }
     }
 
+    /// Clamping happens in this setter rather than in a `didSet` on the storage.
+    /// `@Observable` turns a stored property into a computed one over `_name`,
+    /// so a `didSet` that assigns to its own property re-enters its own setter
+    /// forever instead of quietly writing through the way it would on a plain
+    /// stored property.
     var thresholdSeconds: TimeInterval {
-        didSet {
-            thresholdSeconds = max(Self.minimumInterval, thresholdSeconds)
-            UserDefaults.standard.set(thresholdSeconds, forKey: Key.threshold)
+        get { storedThresholdSeconds }
+        set {
+            let clamped = max(Self.minimumInterval, newValue)
+            guard clamped != storedThresholdSeconds else { return }
+            storedThresholdSeconds = clamped
+            defaults.set(clamped, forKey: Key.threshold)
         }
     }
+
+    private var storedThresholdSeconds: TimeInterval
 
     /// Idle time is measured from this instant as well as from the last input
     /// event. The hardware idle timer keeps running across a sleep, so without
@@ -58,19 +68,22 @@ final class IdleMonitor {
     private var countdownStart = Date()
     private var timer: Timer?
 
+    @ObservationIgnored private let defaults: UserDefaults
+
     private enum Key {
         static let threshold = "idleThresholdSeconds"
         static let isEnabled = "isEnabled"
     }
 
-    init() {
-        let defaults = UserDefaults.standard
+    init(defaults: UserDefaults = .standard) {
         defaults.register(defaults: [
             Key.threshold: 600.0,
             Key.isEnabled: true,
         ])
+        self.defaults = defaults
         isEnabled = defaults.bool(forKey: Key.isEnabled)
-        thresholdSeconds = max(Self.minimumInterval, defaults.double(forKey: Key.threshold))
+        storedThresholdSeconds = max(
+            Self.minimumInterval, defaults.double(forKey: Key.threshold))
     }
 
     var secondsRemaining: TimeInterval {
