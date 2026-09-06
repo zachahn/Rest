@@ -7,7 +7,7 @@ let project = Project(
             name: "Rest",
             destinations: .macOS,
             product: .app,
-            bundleId: "dev.tuist.Rest",
+            bundleId: "com.zachahn.Rest",
             deploymentTargets: .macOS("14.0"),
             infoPlist: .extendingDefault(with: [
                 // Menu bar only: no Dock icon, no windows at launch.
@@ -24,7 +24,7 @@ let project = Project(
             name: "RestTests",
             destinations: .macOS,
             product: .unitTests,
-            bundleId: "dev.tuist.RestTests",
+            bundleId: "com.zachahn.RestTests",
             deploymentTargets: .macOS("14.0"),
             infoPlist: .default,
             buildableFolders: [
