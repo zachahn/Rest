@@ -4,10 +4,6 @@ struct MenuBarContent: View {
     @Bindable var monitor: IdleMonitor
 
     var body: some View {
-        Text(statusLine)
-
-        Divider()
-
         Toggle("Sleep When Idle", isOn: $monitor.isEnabled)
 
         Picker("Sleep After", selection: $monitor.thresholdSeconds) {
@@ -25,13 +21,6 @@ struct MenuBarContent: View {
 
         Button("Quit Spore") { NSApp.terminate(nil) }
             .keyboardShortcut("q")
-    }
-
-    private var statusLine: String {
-        guard monitor.isEnabled else {
-            return "Idle \(formatDuration(monitor.idleSeconds)) · off"
-        }
-        return "Idle \(formatDuration(monitor.idleSeconds)) · sleeps in \(formatDuration(monitor.secondsRemaining))"
     }
 
     /// Presets, plus the stored value in case it came from an older build that
