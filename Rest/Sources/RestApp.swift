@@ -10,7 +10,7 @@ struct RestApp: App {
         MenuBarExtra {
             MenuBarContent(monitor: monitor, launchAtLogin: launchAtLogin)
         } label: {
-            Image(systemName: monitor.isEnabled ? "moon.zzz.fill" : "moon.zzz")
+            Image(systemName: monitor.isEnabled ? "moon.stars.fill" : "moon.stars")
         }
     }
 }
