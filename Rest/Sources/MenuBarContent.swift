@@ -26,7 +26,6 @@ struct MenuBarContent: View {
         Divider()
 
         Button("Sleep Now") { monitor.sleepNow() }
-        Button("Reset Timer") { monitor.restartCountdown() }
 
         Divider()
 
