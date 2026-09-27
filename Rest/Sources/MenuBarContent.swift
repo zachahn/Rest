@@ -1,8 +1,10 @@
 import SwiftUI
+import Sparkle
 
 struct MenuBarContent: View {
     @Bindable var monitor: IdleMonitor
     var launchAtLogin: LaunchAtLogin
+    let updater: SPUUpdater
 
     var body: some View {
         Toggle("Sleep When Idle", isOn: $monitor.isEnabled)
@@ -28,6 +30,8 @@ struct MenuBarContent: View {
 
         Divider()
 
+        CheckForUpdatesButton(updater: updater)
+
         Button("Quit Rest") { NSApp.terminate(nil) }
             .keyboardShortcut("q")
     }
@@ -37,5 +41,16 @@ struct MenuBarContent: View {
     /// current selection.
     private var intervalOptions: [TimeInterval] {
         Set(IdleMonitor.presetIntervals + [monitor.thresholdSeconds]).sorted()
+    }
+}
+
+private struct CheckForUpdatesButton: View {
+    let updater: SPUUpdater
+    @State private var canCheck = false
+
+    var body: some View {
+        Button("Check for Updates…") { updater.checkForUpdates() }
+            .disabled(!canCheck)
+            .onReceive(updater.publisher(for: \.canCheckForUpdates)) { canCheck = $0 }
     }
 }
