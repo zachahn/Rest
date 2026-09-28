@@ -70,4 +70,4 @@ Derived/
 Tuist/.build
 
 # Local release configuration
-release.json
+/release.json
