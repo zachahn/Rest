@@ -42,6 +42,7 @@ final class IdleMonitor {
         didSet {
             defaults.set(isEnabled, forKey: Key.isEnabled)
             restartCountdown()
+            updateTimer()
         }
     }
 
@@ -74,6 +75,7 @@ final class IdleMonitor {
     /// would come back to an already-expired timer and sleep again immediately.
     private var countdownStart = Date()
     private var timer: Timer?
+    private var hasStarted = false
 
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let cameraIsOn: () -> Bool
@@ -105,6 +107,8 @@ final class IdleMonitor {
     }
 
     func start() {
+        guard !hasStarted else { return }
+        hasStarted = true
         let workspace = NSWorkspace.shared.notificationCenter
         workspace.addObserver(
             forName: NSWorkspace.willSleepNotification, object: nil, queue: .main
@@ -117,13 +121,24 @@ final class IdleMonitor {
             Task { @MainActor in self?.restartCountdown() }
         }
 
-        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.tick() }
+        updateTimer()
+    }
+
+    private func updateTimer() {
+        guard hasStarted else { return }
+        if isEnabled {
+            guard timer == nil else { return }
+            let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+                Task { @MainActor in self?.tick() }
+            }
+            // .common so the countdown keeps running while a menu is tracking.
+            RunLoop.main.add(timer, forMode: .common)
+            self.timer = timer
+            tick()
+        } else {
+            timer?.invalidate()
+            timer = nil
         }
-        // .common so the countdown keeps running while a menu is tracking.
-        RunLoop.main.add(timer, forMode: .common)
-        self.timer = timer
-        tick()
     }
 
     /// Give the user a fresh, full interval starting now.
@@ -138,6 +153,7 @@ final class IdleMonitor {
     }
 
     private func tick() {
+        guard isEnabled else { return }
         checkForIdleSleep(idleSeconds: measureIdleSeconds())
     }
 
