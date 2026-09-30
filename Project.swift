@@ -5,8 +5,8 @@ let signingSettings: Settings = .settings(base: [
     "CODE_SIGN_STYLE": "Automatic",
     "CODE_SIGN_IDENTITY": "Apple Development",
     "ENABLE_HARDENED_RUNTIME": "YES",
-    "MARKETING_VERSION": "1.0",
-    "CURRENT_PROJECT_VERSION": "2",
+    "MARKETING_VERSION": "1.1",
+    "CURRENT_PROJECT_VERSION": "3",
 ])
 
 let project = Project(
