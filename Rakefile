@@ -19,12 +19,12 @@
 # APP_NAME        Exported bundle name without .app; otherwise the sole .app.
 # CONFIGURATION   Release (default).
 # BUILD_DIR       build (default); reuse a directory to resume a release.
-# MANIFEST        Project.swift (default), used only by release:bump.
+# MANIFEST        Project.swift (default), source of the release build number.
 # SPARKLE_BIN_DIR Tuist/.build/artifacts/sparkle/Sparkle/bin (default).
 # RELEASE_NOTES   Markdown file relative to this file; otherwise generic notes.
 #
 # rake release:setup (create or complete release.json and configure notarization)
-# rake release:bump VERSION=1.1 (requires gh access to check published build numbers)
+# rake release:bump VERSION=1.1
 # rake release:meta:diff (compare this Rakefile with the upstream main branch)
 # rake release:meta:upgrade (replace this Rakefile with the upstream main branch)
 # rake release
@@ -61,7 +61,6 @@ DEFAULT_RELEASE_NOTES = <<~NOTES.freeze
 
   Download %{zip_name}, unzip it, and move %{app_bundle_name} to Applications.
 NOTES
-DEFAULT_ZIP_ASSET_LABEL = "Sparkle build %{build_version}"
 
 RELEASE_CONFIG =
   begin
@@ -221,18 +220,17 @@ def releases
   JSON.parse(capture!("gh", "api", "--paginate", "repos/#{gh_repo}/releases", "--slurp")).flatten
 end
 
-def highest_published_build(release_list, excluding_tag = nil)
-  release_list.reject { |release| release["draft"] || release["tag_name"] == excluding_tag }
-    .flat_map { |release| release.fetch("assets", []) }
-    .map do |asset|
-      # New ZIPs keep the build number in their GitHub display label. Older
-      # releases included it in the filename.
-      build = asset["label"]&.match(/\ASparkle build (\d+)\z/)&.captures&.first ||
-        asset["name"]&.match(/-(\d+)\.zip\z/)&.captures&.first
-      build&.to_i
-    end
-    .compact
-    .max || 0
+def manifest_build_versions
+  halt("missing Tuist manifest: #{MANIFEST}") unless File.file?(MANIFEST)
+  builds = File.read(MANIFEST).scan(/"CURRENT_PROJECT_VERSION"\s*:\s*"(\d+)"/).flatten
+  halt("no CURRENT_PROJECT_VERSION found in #{MANIFEST}") if builds.empty?
+  builds
+end
+
+def manifest_build_version
+  builds = manifest_build_versions.uniq
+  halt("conflicting CURRENT_PROJECT_VERSION values in #{MANIFEST}") unless builds.one?
+  builds.first
 end
 
 def remote_tag_commit
@@ -477,12 +475,10 @@ namespace :release do
     halt("VERSION must look like 1.1 or 1.2.3") unless version.match?(/\A\d+(\.\d+){1,2}\z/)
 
     # Project.swift is authoritative; Tuist regenerates the Xcode project.
-    halt("missing Tuist manifest: #{MANIFEST}") unless File.file?(MANIFEST)
+    builds = manifest_build_versions.map(&:to_i)
     text = File.read(MANIFEST)
-    builds = text.scan(/"CURRENT_PROJECT_VERSION"\s*:\s*"(\d+)"/).flatten.map(&:to_i)
-    halt("no CURRENT_PROJECT_VERSION found in #{MANIFEST}") if builds.empty?
     halt("no MARKETING_VERSION found in #{MANIFEST}") unless text.match?(/"MARKETING_VERSION"\s*:\s*"[^"]+"/)
-    next_build = [builds.max, highest_published_build(releases)].max + 1
+    next_build = builds.max + 1
     text = text.gsub(/"CURRENT_PROJECT_VERSION"\s*:\s*"\d+"/, %("CURRENT_PROJECT_VERSION": "#{next_build}"))
     text = text.gsub(/"MARKETING_VERSION"\s*:\s*"[^"]+"/, %("MARKETING_VERSION": "#{version}"))
     File.write(MANIFEST, text)
@@ -673,10 +669,9 @@ namespace :release do
       step "publishing the GitHub release"
       halt("missing ZIP or appcast — run earlier steps first") unless File.exist?(zip_path) && File.exist?(APPCAST)
       verify_release_source!
-      halt("build #{build_version} is not numeric; expected a monotonically increasing build number") unless build_version.match?(/\A\d+\z/)
+      expected_build = manifest_build_version
+      halt("app build #{build_version} does not match CURRENT_PROJECT_VERSION #{expected_build} in #{MANIFEST}") unless build_version == expected_build
       release_list = releases
-      prior_build = highest_published_build(release_list, tag)
-      halt("build #{build_version} is not newer than published build #{prior_build}") unless build_version.to_i > prior_build
       document = REXML::Document.new(File.read(APPCAST))
       item = REXML::XPath.match(document, "/rss/channel/item").find do |entry|
         entry.elements["sparkle:version"]&.text == build_version
@@ -692,8 +687,7 @@ namespace :release do
       # Stage assets in a draft so the feed becomes public only after upload succeeds.
       # Existing public assets must stay immutable; reruns may replace draft assets.
       existing = release_list.find { |release| release["tag_name"] == tag }
-      asset_label = format(DEFAULT_ZIP_ASSET_LABEL, build_version: build_version)
-      assets = ["#{zip_path}##{asset_label}", "#{zip_path}.sha256", APPCAST]
+      assets = [zip_path, "#{zip_path}.sha256", APPCAST]
       if existing
         halt("#{tag} is already published; bump the version first") unless existing["draft"]
         sh! "gh", "release", "upload", tag, *assets, "--repo", gh_repo, "--clobber"
