@@ -1,0 +1,2 @@
+- Prefer `tuist xcodebuild` over plain `xcodebuild`
+  - Prefer testing `-project Rest.xcworkspace`
