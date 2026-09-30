@@ -42,13 +42,13 @@ final class IdleMonitor {
         didSet {
             defaults.set(isEnabled, forKey: Key.isEnabled)
             restartCountdown()
-            updateTimer()
         }
     }
 
     var preventSleepWhileCameraIsOn: Bool {
         didSet {
             defaults.set(preventSleepWhileCameraIsOn, forKey: Key.preventSleepWhileCameraIsOn)
+            updateTimer()
         }
     }
 
@@ -64,6 +64,7 @@ final class IdleMonitor {
             guard clamped != storedThresholdSeconds else { return }
             storedThresholdSeconds = clamped
             defaults.set(clamped, forKey: Key.threshold)
+            updateTimer()
         }
     }
 
@@ -113,7 +114,10 @@ final class IdleMonitor {
         workspace.addObserver(
             forName: NSWorkspace.willSleepNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.sleepIsPending = true }
+            Task { @MainActor in
+                self?.sleepIsPending = true
+                self?.stopTimer()
+            }
         }
         workspace.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
@@ -125,36 +129,49 @@ final class IdleMonitor {
     }
 
     private func updateTimer() {
-        guard hasStarted else { return }
-        if isEnabled {
-            guard timer == nil else { return }
-            let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
-                Task { @MainActor in self?.tick() }
-            }
-            // .common so the countdown keeps running while a menu is tracking.
-            RunLoop.main.add(timer, forMode: .common)
-            self.timer = timer
-            tick()
-        } else {
-            timer?.invalidate()
-            timer = nil
+        stopTimer()
+        guard hasStarted, isEnabled, !sleepIsPending else { return }
+        tick()
+    }
+
+    private func stopTimer() {
+        timer?.invalidate()
+        timer = nil
+    }
+
+    private func scheduleCheck(after seconds: TimeInterval) {
+        stopTimer()
+        let timer = Timer(timeInterval: max(1, seconds), repeats: false) { [weak self] _ in
+            Task { @MainActor in self?.tick() }
         }
+        // .common so the check still runs while a menu is tracking.
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
     }
 
     /// Give the user a fresh, full interval starting now.
     func restartCountdown() {
         countdownStart = Date()
         sleepIsPending = false
+        updateTimer()
     }
 
     func sleepNow() {
         sleepIsPending = true
+        stopTimer()
         requestSleep()
     }
 
     private func tick() {
-        guard isEnabled else { return }
-        checkForIdleSleep(idleSeconds: measureIdleSeconds())
+        guard isEnabled, !sleepIsPending else { return }
+        let idleSeconds = measureIdleSeconds()
+        checkForIdleSleep(idleSeconds: idleSeconds)
+        guard !sleepIsPending else { return }
+        // Input may have reset the hardware idle clock since the last check.
+        // When the camera blocks sleep, retry periodically so turning it off
+        // does not leave the Mac awake for another full threshold interval.
+        let remaining = thresholdSeconds - idleSeconds
+        scheduleCheck(after: remaining > 0 ? remaining : 5)
     }
 
     func checkForIdleSleep(idleSeconds: TimeInterval) {
