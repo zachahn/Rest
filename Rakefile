@@ -55,6 +55,13 @@ require "rbconfig"
 require "open3"
 
 UPSTREAM_RAKEFILE = "https://raw.githubusercontent.com/zachahn/release-tuist-sparkle/main/Rakefile"
+DEFAULT_RELEASE_TITLE = "%{app_name} %{marketing_version}"
+DEFAULT_RELEASE_NOTES = <<~NOTES.freeze
+  %{app_name} %{marketing_version} (build %{build_version}) for macOS.
+
+  Download %{zip_name}, unzip it, and move %{app_bundle_name} to Applications.
+NOTES
+DEFAULT_ZIP_ASSET_LABEL = "Sparkle build %{build_version}"
 
 RELEASE_CONFIG =
   begin
@@ -685,7 +692,8 @@ namespace :release do
       # Stage assets in a draft so the feed becomes public only after upload succeeds.
       # Existing public assets must stay immutable; reruns may replace draft assets.
       existing = release_list.find { |release| release["tag_name"] == tag }
-      assets = ["#{zip_path}#Sparkle build #{build_version}", "#{zip_path}.sha256", APPCAST]
+      asset_label = format(DEFAULT_ZIP_ASSET_LABEL, build_version: build_version)
+      assets = ["#{zip_path}##{asset_label}", "#{zip_path}.sha256", APPCAST]
       if existing
         halt("#{tag} is already published; bump the version first") unless existing["draft"]
         sh! "gh", "release", "upload", tag, *assets, "--repo", gh_repo, "--clobber"
@@ -695,15 +703,15 @@ namespace :release do
         if supplied_notes
           halt("missing RELEASE_NOTES file: #{notes}") unless File.file?(notes)
         else
-          File.write(notes, <<~NOTES)
-            #{app_name} #{marketing_version} (build #{build_version}) for macOS.
-
-            Download #{zip_name}, unzip it, and move #{File.basename(app)} to Applications.
-          NOTES
+          File.write(notes, format(DEFAULT_RELEASE_NOTES,
+            app_name: app_name, marketing_version: marketing_version,
+            build_version: build_version, zip_name: zip_name,
+            app_bundle_name: File.basename(app)))
         end
         sh! "gh", "release", "create", tag, *assets,
           "--repo", gh_repo, "--draft", "--verify-tag",
-          "--title", "#{app_name} #{marketing_version}", "--notes-file", notes
+          "--title", format(DEFAULT_RELEASE_TITLE, app_name: app_name, marketing_version: marketing_version),
+          "--notes-file", notes
       end
       sh! "gh", "release", "edit", tag, "--repo", gh_repo,
         "--draft=false", "--prerelease=false", "--latest"
