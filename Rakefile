@@ -32,14 +32,14 @@
 #
 # Stages can also run independently: release:run:preflight, release:run:archive,
 # release:run:export, release:run:zip, release:run:notarize,
-# release:run:appcast, release:run:github.
+# release:run:appcast, release:run:tag, release:run:github.
 # This workflow builds a universal macOS app with automatic Developer ID signing,
 # notarizes a ZIP, and publishes a regular GitHub release marked latest.
 # The app's SUFeedURL must be:
 # https://github.com/<owner>/<repo>/releases/latest/download/appcast.xml
 # SUPublicEDKey must match the Sparkle key stored under SPARKLE_ACCOUNT.
-# Commit and push source changes and the v<marketing-version> tag before publishing.
-# This pipeline does not commit or push automatically.
+# Commit and push source changes before releasing. The tag stage creates and
+# pushes v<marketing-version> for the archived commit.
 # release:bump supports literal string MARKETING_VERSION and numeric string
 # CURRENT_PROJECT_VERSION entries in the Tuist manifest; all matches are updated.
 
@@ -232,11 +232,16 @@ def remote_tag_commit
   object.fetch("sha")
 end
 
-def verify_release_source!
+def verify_archive_source!
   clean_source!
   halt("missing archive source record — run `rake release:run:archive` first") unless File.file?(SOURCE_COMMIT)
   commit = source_commit
   halt("checkout changed since archive; rebuild the release") unless File.read(SOURCE_COMMIT).strip == commit
+  commit
+end
+
+def verify_release_source!
+  commit = verify_archive_source!
   remote_commit = remote_tag_commit
   halt("remote tag #{tag} does not point to archived commit #{commit}") unless remote_commit == commit
 end
@@ -302,7 +307,7 @@ end
 
 # ---- tasks -----------------------------------------------------------------
 
-desc "Full release: preflight → archive → export → zip → notarize → appcast → GitHub publish"
+desc "Full release: preflight → archive → export → zip → notarize → appcast → tag → GitHub publish"
 task release: %w[
   release:run:preflight
   release:run:archive
@@ -310,6 +315,7 @@ task release: %w[
   release:run:zip
   release:run:notarize
   release:run:appcast
+  release:run:tag
   release:run:github
 ] do
   ok "release #{tag} published"
@@ -632,6 +638,21 @@ namespace :release do
         DIST_DIR
       ok "appcast.xml updated for #{marketing_version} (build #{build_version})"
       note "enclosure URL prefix: #{download_prefix}"
+    end
+
+    desc "tag the archived commit and push the tag to origin"
+    task :tag do
+      step "tagging the archived commit"
+      commit = verify_archive_source!
+      if system("git", "show-ref", "--verify", "--quiet", "refs/tags/#{tag}")
+        local_commit = capture!("git", "rev-parse", "refs/tags/#{tag}^{commit}").strip
+        halt("local tag #{tag} does not point to archived commit #{commit}") unless local_commit == commit
+      else
+        sh! "git", "tag", tag, commit
+      end
+      sh! "git", "push", "origin", "refs/tags/#{tag}"
+      verify_release_source!
+      ok "tag #{tag} points to archived commit #{commit} on GitHub"
     end
 
     desc "publish a regular GitHub release with the ZIP, checksum, and appcast"
