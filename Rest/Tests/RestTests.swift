@@ -87,12 +87,14 @@ struct IdleMonitorTests {
         #expect(sleepRequests == 1)
     }
 
-    @Test func countsOnlyMovementAndKeyPresses() {
+    @Test func countsMovementClicksAndKeyPresses() {
         let counted = Set(IdleMonitor.activityEvents)
         #expect(counted.contains(.mouseMoved))
+        #expect(counted.contains(.leftMouseDown))
+        #expect(counted.contains(.rightMouseDown))
+        #expect(counted.contains(.otherMouseDown))
         #expect(counted.contains(.keyDown))
         #expect(!counted.contains(.scrollWheel))
-        #expect(!counted.contains(.leftMouseDown))
     }
 
     @Test(arguments: [

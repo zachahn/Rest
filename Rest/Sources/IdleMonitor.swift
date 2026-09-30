@@ -2,8 +2,8 @@ import AppKit
 import Observation
 import IsCameraOn
 
-/// Watches how long it has been since the user physically moved the mouse or
-/// pressed a key, and forces the machine to sleep once that crosses the
+/// Watches how long it has been since the user physically moved or clicked the
+/// mouse or pressed a key, and forces the machine to sleep once that crosses the
 /// configured threshold.
 @MainActor
 @Observable
@@ -22,6 +22,9 @@ final class IdleMonitor {
         .leftMouseDragged,
         .rightMouseDragged,
         .otherMouseDragged,
+        .leftMouseDown,
+        .rightMouseDown,
+        .otherMouseDown,
         .keyDown,
         .flagsChanged,
     ]
