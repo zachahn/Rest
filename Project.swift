@@ -31,7 +31,7 @@ let project = Project(
                 "Rest/Sources",
                 "Rest/Resources",
             ],
-            dependencies: [.external(name: "Sparkle")],
+            dependencies: [.external(name: "Sparkle"), .external(name: "IsCameraOn")],
             settings: signingSettings
         ),
         .target(

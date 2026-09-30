@@ -42,6 +42,51 @@ struct IdleMonitorTests {
         #expect(IdleMonitor(defaults: defaults).isEnabled == false)
     }
 
+    @Test func persistsCameraPreference() {
+        let (monitor, defaults) = makeMonitor()
+        #expect(!monitor.preventSleepWhileCameraIsOn)
+        monitor.preventSleepWhileCameraIsOn = true
+        #expect(IdleMonitor(defaults: defaults).preventSleepWhileCameraIsOn)
+    }
+
+    @Test func cameraBlocksIdleSleepUntilItTurnsOff() {
+        let (_, defaults) = makeMonitor()
+        var cameraActive = true
+        var sleepRequests = 0
+        let monitor = IdleMonitor(
+            defaults: defaults, cameraIsOn: { cameraActive },
+            requestSleep: { sleepRequests += 1 })
+        monitor.preventSleepWhileCameraIsOn = true
+        monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
+        #expect(sleepRequests == 0)
+        #expect(!monitor.sleepIsPending)
+        cameraActive = false
+        monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
+        monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
+        #expect(sleepRequests == 1)
+    }
+
+    @Test func cameraDoesNotBlockWhenPreferenceIsOff() {
+        let (_, defaults) = makeMonitor()
+        var sleepRequests = 0
+        let monitor = IdleMonitor(
+            defaults: defaults, cameraIsOn: { true },
+            requestSleep: { sleepRequests += 1 })
+        monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
+        #expect(sleepRequests == 1)
+    }
+
+    @Test func manualSleepOverridesCameraPreference() {
+        let (_, defaults) = makeMonitor()
+        var sleepRequests = 0
+        let monitor = IdleMonitor(
+            defaults: defaults, cameraIsOn: { true },
+            requestSleep: { sleepRequests += 1 })
+        monitor.preventSleepWhileCameraIsOn = true
+        monitor.sleepNow()
+        #expect(sleepRequests == 1)
+    }
+
     @Test func countsOnlyMovementAndKeyPresses() {
         let counted = Set(IdleMonitor.activityEvents)
         #expect(counted.contains(.mouseMoved))

@@ -1,5 +1,6 @@
 import AppKit
 import Observation
+import IsCameraOn
 
 /// Watches how long it has been since the user physically moved the mouse or
 /// pressed a key, and forces the machine to sleep once that crosses the
@@ -44,6 +45,12 @@ final class IdleMonitor {
         }
     }
 
+    var preventSleepWhileCameraIsOn: Bool {
+        didSet {
+            defaults.set(preventSleepWhileCameraIsOn, forKey: Key.preventSleepWhileCameraIsOn)
+        }
+    }
+
     /// Clamping happens in this setter rather than in a `didSet` on the storage.
     /// `@Observable` turns a stored property into a computed one over `_name`,
     /// so a `didSet` that assigns to its own property re-enters its own setter
@@ -69,19 +76,30 @@ final class IdleMonitor {
     private var timer: Timer?
 
     @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored private let cameraIsOn: () -> Bool
+    @ObservationIgnored private let requestSleep: () -> Void
 
     private enum Key {
         static let threshold = "idleThresholdSeconds"
         static let isEnabled = "isEnabled"
+        static let preventSleepWhileCameraIsOn = "preventSleepWhileCameraIsOn"
     }
 
-    init(defaults: UserDefaults = .standard) {
+    init(
+        defaults: UserDefaults = .standard,
+        cameraIsOn: @escaping () -> Bool = { isCameraOn(includeExternal: true) },
+        requestSleep: @escaping () -> Void = { SystemSleep.request() }
+    ) {
         defaults.register(defaults: [
             Key.threshold: 600.0,
             Key.isEnabled: true,
+            Key.preventSleepWhileCameraIsOn: false,
         ])
         self.defaults = defaults
+        self.cameraIsOn = cameraIsOn
+        self.requestSleep = requestSleep
         isEnabled = defaults.bool(forKey: Key.isEnabled)
+        preventSleepWhileCameraIsOn = defaults.bool(forKey: Key.preventSleepWhileCameraIsOn)
         storedThresholdSeconds = max(
             Self.minimumInterval, defaults.double(forKey: Key.threshold))
     }
@@ -116,12 +134,16 @@ final class IdleMonitor {
 
     func sleepNow() {
         sleepIsPending = true
-        SystemSleep.request()
+        requestSleep()
     }
 
     private func tick() {
-        let idle = measureIdleSeconds()
-        guard isEnabled, !sleepIsPending, idle >= thresholdSeconds else { return }
+        checkForIdleSleep(idleSeconds: measureIdleSeconds())
+    }
+
+    func checkForIdleSleep(idleSeconds: TimeInterval) {
+        guard isEnabled, !sleepIsPending, idleSeconds >= thresholdSeconds else { return }
+        guard !preventSleepWhileCameraIsOn || !cameraIsOn() else { return }
         sleepNow()
     }
 

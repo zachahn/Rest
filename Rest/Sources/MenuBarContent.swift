@@ -9,6 +9,8 @@ struct MenuBarContent: View {
     var body: some View {
         Toggle("Sleep When Idle", isOn: $monitor.isEnabled)
 
+        Toggle("Keep Awake While Camera Is On", isOn: $monitor.preventSleepWhileCameraIsOn)
+
         Picker("Sleep After", selection: $monitor.thresholdSeconds) {
             ForEach(intervalOptions, id: \.self) { interval in
                 Text(formatDuration(interval)).tag(interval)

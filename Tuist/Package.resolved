@@ -1,6 +1,15 @@
 {
-  "originHash" : "364733c5071f2160271f7306dd238e884c3eebd705ecf631344f6f09e95abea2",
+  "originHash" : "0c7c5a711381d5ae517745a93086d066aff288bc772e4ad7af8530d5d47c28f8",
   "pins" : [
+    {
+      "identity" : "is-camera-on",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/sindresorhus/is-camera-on",
+      "state" : {
+        "revision" : "4bbc8632b3d3e1b595de8ee0b39d31565b813b47",
+        "version" : "3.0.0"
+      }
+    },
     {
       "identity" : "sparkle",
       "kind" : "remoteSourceControl",

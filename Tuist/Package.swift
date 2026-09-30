@@ -16,5 +16,6 @@ let package = Package(
     name: "Rest",
     dependencies: [
         .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.10.0"),
+        .package(url: "https://github.com/sindresorhus/is-camera-on", exact: "3.0.0"),
     ]
 )
