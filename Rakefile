@@ -217,7 +217,13 @@ end
 def highest_published_build(release_list, excluding_tag = nil)
   release_list.reject { |release| release["draft"] || release["tag_name"] == excluding_tag }
     .flat_map { |release| release.fetch("assets", []) }
-    .map { |asset| asset["name"]&.match(/-(\d+)\.zip\z/)&.captures&.first&.to_i }
+    .map do |asset|
+      # New ZIPs keep the build number in their GitHub display label. Older
+      # releases included it in the filename.
+      build = asset["label"]&.match(/\ASparkle build (\d+)\z/)&.captures&.first ||
+        asset["name"]&.match(/-(\d+)\.zip\z/)&.captures&.first
+      build&.to_i
+    end
     .compact
     .max || 0
 end
@@ -265,7 +271,7 @@ end
 
 # GitHub asset names and appcast URLs need a filename without spaces or URL delimiters.
 def zip_name
-  "#{app_name.gsub(/[^A-Za-z0-9._-]+/, "-")}-#{marketing_version}-#{build_version}.zip"
+  "#{app_name.gsub(/[^A-Za-z0-9._-]+/, "-")}-#{marketing_version}.zip"
 end
 
 def zip_path
@@ -679,7 +685,7 @@ namespace :release do
       # Stage assets in a draft so the feed becomes public only after upload succeeds.
       # Existing public assets must stay immutable; reruns may replace draft assets.
       existing = release_list.find { |release| release["tag_name"] == tag }
-      assets = [zip_path, "#{zip_path}.sha256", APPCAST]
+      assets = ["#{zip_path}#Sparkle build #{build_version}", "#{zip_path}.sha256", APPCAST]
       if existing
         halt("#{tag} is already published; bump the version first") unless existing["draft"]
         sh! "gh", "release", "upload", tag, *assets, "--repo", gh_repo, "--clobber"
