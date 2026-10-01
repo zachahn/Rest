@@ -24,7 +24,7 @@
 # RELEASE_NOTES   Markdown file relative to this file; otherwise generic notes.
 #
 # rake release:setup (create or complete release.json and configure notarization)
-# rake release:bump VERSION=1.1
+# rake release:bump VERSION=1.1 [BUILD_VERSION=4]
 # rake release:meta:diff (compare this Rakefile with the upstream main branch)
 # rake release:meta:upgrade (replace this Rakefile with the upstream main branch)
 # rake release
@@ -55,9 +55,11 @@ require "rbconfig"
 require "open3"
 
 UPSTREAM_RAKEFILE = "https://raw.githubusercontent.com/zachahn/release-tuist-sparkle/main/Rakefile"
+
 DEFAULT_RELEASE_TITLE = "%{app_name} %{marketing_version}"
+DEFAULT_BUMP_COMMIT_MESSAGE = "Release %{marketing_version}"
 DEFAULT_RELEASE_NOTES = <<~NOTES.freeze
-  %{app_name} %{marketing_version} (build %{build_version}) for macOS.
+  %{app_name} %{marketing_version} for macOS.
 
   Download %{zip_name}, unzip it, and move %{app_bundle_name} to Applications.
 NOTES
@@ -468,22 +470,30 @@ namespace :release do
     end
   end
 
-  desc "Bump the marketing version (VERSION=x.y) and increment the build number"
+  desc "Bump VERSION=x.y, optionally set BUILD_VERSION=n, and commit Project.swift"
   task :bump do
     version = ENV["VERSION"]
     halt("set VERSION, e.g. `rake release:bump VERSION=1.1`") if version.to_s.strip.empty?
     halt("VERSION must look like 1.1 or 1.2.3") unless version.match?(/\A\d+(\.\d+){1,2}\z/)
+    requested_build = ENV["BUILD_VERSION"]
+    halt("BUILD_VERSION must be a positive integer") if requested_build && !requested_build.match?(/\A[1-9]\d*\z/)
 
     # Project.swift is authoritative; Tuist regenerates the Xcode project.
     builds = manifest_build_versions.map(&:to_i)
+    manifest_path = Pathname.new(MANIFEST).relative_path_from(Pathname.new(ROOT)).to_s
+    halt("MANIFEST must be inside the project to commit it") if manifest_path == ".." || manifest_path.start_with?("../")
+    halt("#{MANIFEST} has uncommitted changes; commit them before bumping") unless capture!("git", "status", "--porcelain", "--", manifest_path).empty?
     text = File.read(MANIFEST)
     halt("no MARKETING_VERSION found in #{MANIFEST}") unless text.match?(/"MARKETING_VERSION"\s*:\s*"[^"]+"/)
-    next_build = builds.max + 1
+    next_build = requested_build ? requested_build.to_i : builds.max + 1
+    halt("BUILD_VERSION must be greater than current build #{builds.max}") unless next_build > builds.max
     text = text.gsub(/"CURRENT_PROJECT_VERSION"\s*:\s*"\d+"/, %("CURRENT_PROJECT_VERSION": "#{next_build}"))
     text = text.gsub(/"MARKETING_VERSION"\s*:\s*"[^"]+"/, %("MARKETING_VERSION": "#{version}"))
     File.write(MANIFEST, text)
+    commit_message = format(DEFAULT_BUMP_COMMIT_MESSAGE, marketing_version: version, build_version: next_build)
+    sh! "git", "commit", "--only", "-m", commit_message, "--", manifest_path
+    sh! "git", "show", "HEAD"
     ok "marketing version #{version}, build #{next_build}"
-    note "Review and commit #{MANIFEST} before releasing."
   end
 
   namespace :run do
