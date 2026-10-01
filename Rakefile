@@ -21,7 +21,7 @@
 # BUILD_DIR       build (default); reuse a directory to resume a release.
 # MANIFEST        Project.swift (default), source of the release build number.
 # SPARKLE_BIN_DIR Tuist/.build/artifacts/sparkle/Sparkle/bin (default).
-# RELEASE_NOTES   Markdown file relative to this file; otherwise generic notes.
+# RELEASE_NOTES   Markdown file relative to this file; otherwise no release notes.
 #
 # rake release:setup (create or complete release.json and configure notarization)
 # rake release:bump VERSION=1.1 [BUILD_VERSION=4]
@@ -58,11 +58,6 @@ UPSTREAM_RAKEFILE = "https://raw.githubusercontent.com/zachahn/release-tuist-spa
 
 DEFAULT_RELEASE_TITLE = "%{app_name} %{marketing_version}"
 DEFAULT_BUMP_COMMIT_MESSAGE = "Release %{marketing_version}"
-DEFAULT_RELEASE_NOTES = <<~NOTES.freeze
-  %{app_name} %{marketing_version} for macOS.
-
-  Download %{zip_name}, unzip it, and move %{app_bundle_name} to Applications.
-NOTES
 
 RELEASE_CONFIG =
   begin
@@ -703,19 +698,17 @@ namespace :release do
         sh! "gh", "release", "upload", tag, *assets, "--repo", gh_repo, "--clobber"
       else
         supplied_notes = optional_setting("RELEASE_NOTES")
-        notes = supplied_notes ? File.expand_path(supplied_notes, ROOT) : File.join(BUILD_DIR, "release-notes.md")
-        if supplied_notes
+        notes_args = if supplied_notes
+          notes = File.expand_path(supplied_notes, ROOT)
           halt("missing RELEASE_NOTES file: #{notes}") unless File.file?(notes)
+          ["--notes-file", notes]
         else
-          File.write(notes, format(DEFAULT_RELEASE_NOTES,
-            app_name: app_name, marketing_version: marketing_version,
-            build_version: build_version, zip_name: zip_name,
-            app_bundle_name: File.basename(app)))
+          ["--notes", ""]
         end
         sh! "gh", "release", "create", tag, *assets,
           "--repo", gh_repo, "--draft", "--verify-tag",
           "--title", format(DEFAULT_RELEASE_TITLE, app_name: app_name, marketing_version: marketing_version),
-          "--notes-file", notes
+          *notes_args
       end
       sh! "gh", "release", "edit", tag, "--repo", gh_repo,
         "--draft=false", "--prerelease=false", "--latest"
