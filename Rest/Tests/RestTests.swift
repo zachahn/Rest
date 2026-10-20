@@ -92,6 +92,66 @@ struct IdleMonitorTests {
         #expect(sleepRequests == 1)
     }
 
+    @Test func cameraTurningOffRestartsCountdownImmediately() {
+        let (_, defaults) = makeMonitor()
+        var cameraActive = true
+        var sleepRequests = 0
+        let monitor = IdleMonitor(
+            defaults: defaults, cameraIsOn: { cameraActive },
+            requestSleep: { sleepRequests += 1 })
+        monitor.preventSleepWhileCameraIsOn = true
+        monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
+        cameraActive = false
+        monitor.mediaStatusChanged()
+        monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
+        #expect(sleepRequests == 1)
+    }
+
+    @Test func mediaChangeWhileStillOnKeepsBlocking() {
+        let (_, defaults) = makeMonitor()
+        var sleepRequests = 0
+        let monitor = IdleMonitor(
+            defaults: defaults, cameraIsOn: { true }, microphoneIsOn: { true },
+            requestSleep: { sleepRequests += 1 })
+        monitor.preventSleepWhileCameraIsOn = true
+        monitor.preventSleepWhileMicrophoneIsOn = true
+        monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
+        monitor.mediaStatusChanged()
+        monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
+        #expect(sleepRequests == 0)
+    }
+
+    @Test func observesMediaChangesOnlyWhilePreferenceIsOn() {
+        let (_, defaults) = makeMonitor()
+        var cameraSubscriptions = 0
+        var microphoneSubscriptions = 0
+        let monitor = IdleMonitor(
+            defaults: defaults,
+            cameraChanges: {
+                cameraSubscriptions += 1
+                return AsyncStream { _ in }
+            },
+            microphoneChanges: {
+                microphoneSubscriptions += 1
+                return AsyncStream { _ in }
+            },
+            requestSleep: {})
+        monitor.preventSleepWhileCameraIsOn = true
+        #expect(cameraSubscriptions == 0)
+        monitor.start()
+        #expect(cameraSubscriptions == 1)
+        #expect(microphoneSubscriptions == 0)
+        monitor.preventSleepWhileMicrophoneIsOn = true
+        #expect(cameraSubscriptions == 1)
+        #expect(microphoneSubscriptions == 1)
+    }
+
+    @Test func microphoneStatusChangesEmitsCurrentStatus() async {
+        var iterator = Microphone.statusChanges().makeAsyncIterator()
+        let first = await iterator.next()
+        #expect(first == Microphone.isOn())
+    }
+
     @Test func microphoneDoesNotBlockWhenPreferenceIsOff() {
         let (_, defaults) = makeMonitor()
         var sleepRequests = 0

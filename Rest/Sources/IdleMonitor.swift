@@ -51,6 +51,7 @@ final class IdleMonitor {
     var preventSleepWhileCameraIsOn: Bool {
         didSet {
             defaults.set(preventSleepWhileCameraIsOn, forKey: Key.preventSleepWhileCameraIsOn)
+            updateCameraObservation()
             updateTimer()
         }
     }
@@ -59,6 +60,7 @@ final class IdleMonitor {
         didSet {
             defaults.set(
                 preventSleepWhileMicrophoneIsOn, forKey: Key.preventSleepWhileMicrophoneIsOn)
+            updateMicrophoneObservation()
             updateTimer()
         }
     }
@@ -89,10 +91,14 @@ final class IdleMonitor {
     private var timer: Timer?
     private var hasStarted = false
     private var mediaWasKeepingAwake = false
+    private var cameraObservation: Task<Void, Never>?
+    private var microphoneObservation: Task<Void, Never>?
 
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let cameraIsOn: () -> Bool
+    @ObservationIgnored private let cameraChanges: @MainActor () -> AsyncStream<Bool>
     @ObservationIgnored private let microphoneIsOn: () -> Bool
+    @ObservationIgnored private let microphoneChanges: @MainActor () -> AsyncStream<Bool>
     @ObservationIgnored private let requestSleep: () -> Void
 
     private enum Key {
@@ -105,7 +111,13 @@ final class IdleMonitor {
     init(
         defaults: UserDefaults = .standard,
         cameraIsOn: @escaping () -> Bool = { isCameraOn(includeExternal: true) },
+        cameraChanges: @escaping @MainActor () -> AsyncStream<Bool> = {
+            cameraStatusChanges(includeExternal: true)
+        },
         microphoneIsOn: @escaping () -> Bool = { Microphone.isOn() },
+        microphoneChanges: @escaping @MainActor () -> AsyncStream<Bool> = {
+            Microphone.statusChanges()
+        },
         requestSleep: @escaping () -> Void = { SystemSleep.request() }
     ) {
         defaults.register(defaults: [
@@ -116,7 +128,9 @@ final class IdleMonitor {
         ])
         self.defaults = defaults
         self.cameraIsOn = cameraIsOn
+        self.cameraChanges = cameraChanges
         self.microphoneIsOn = microphoneIsOn
+        self.microphoneChanges = microphoneChanges
         self.requestSleep = requestSleep
         isEnabled = defaults.bool(forKey: Key.isEnabled)
         preventSleepWhileCameraIsOn = defaults.bool(forKey: Key.preventSleepWhileCameraIsOn)
@@ -144,6 +158,35 @@ final class IdleMonitor {
             Task { @MainActor in self?.restartCountdown() }
         }
 
+        updateCameraObservation()
+        updateMicrophoneObservation()
+        updateTimer()
+    }
+
+    private func updateCameraObservation() {
+        cameraObservation?.cancel()
+        cameraObservation =
+            hasStarted && preventSleepWhileCameraIsOn ? observe(cameraChanges()) : nil
+    }
+
+    private func updateMicrophoneObservation() {
+        microphoneObservation?.cancel()
+        microphoneObservation =
+            hasStarted && preventSleepWhileMicrophoneIsOn ? observe(microphoneChanges()) : nil
+    }
+
+    private func observe(_ changes: AsyncStream<Bool>) -> Task<Void, Never> {
+        Task { [weak self] in
+            for await _ in changes {
+                self?.mediaStatusChanged()
+            }
+        }
+    }
+
+    func mediaStatusChanged() {
+        guard mediaWasKeepingAwake, !mediaIsKeepingAwake() else { return }
+        mediaWasKeepingAwake = false
+        countdownStart = Date()
         updateTimer()
     }
 
@@ -187,10 +230,8 @@ final class IdleMonitor {
         checkForIdleSleep(idleSeconds: measureIdleSeconds())
         guard !sleepIsPending else { return }
         // Input may have reset the hardware idle clock since the last check.
-        // When the camera blocks sleep, retry periodically so turning it off
-        // does not leave the Mac awake for another full threshold interval.
         let remaining = thresholdSeconds - measureIdleSeconds()
-        scheduleCheck(after: remaining > 0 ? remaining : 5)
+        scheduleCheck(after: remaining > 0 ? remaining : thresholdSeconds)
     }
 
     func checkForIdleSleep(idleSeconds: TimeInterval) {
