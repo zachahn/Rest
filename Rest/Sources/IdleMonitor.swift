@@ -140,6 +140,8 @@ final class IdleMonitor {
             Self.minimumInterval, defaults.double(forKey: Key.threshold))
     }
 
+    // MARK: - API
+
     func start() {
         guard !hasStarted else { return }
         hasStarted = true
@@ -168,6 +170,8 @@ final class IdleMonitor {
         stopTimer()
         requestSleep()
     }
+
+    // MARK: - Sleep decision
 
     private func tick() {
         guard isEnabled, !sleepIsPending else { return }
@@ -206,6 +210,8 @@ final class IdleMonitor {
         return min(sinceLastInput, Date().timeIntervalSince(countdownStart))
     }
 
+    // MARK: - Countdown
+
     /// Give the user a fresh, full interval starting now.
     private func restartCountdown() {
         countdownStart = Date()
@@ -234,6 +240,8 @@ final class IdleMonitor {
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
     }
+
+    // MARK: - Camera and microphone
 
     private func updateCameraObservation() {
         cameraObservation?.cancel()

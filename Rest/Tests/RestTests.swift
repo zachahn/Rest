@@ -13,6 +13,8 @@ struct IdleMonitorTests {
         return (IdleMonitor(defaults: defaults, requestSleep: {}), defaults)
     }
 
+    // MARK: - Settings
+
     @Test func clampsThresholdToMinimum() {
         let (monitor, _) = makeMonitor()
         monitor.thresholdSeconds = 1
@@ -49,6 +51,15 @@ struct IdleMonitorTests {
         #expect(IdleMonitor(defaults: defaults).preventSleepWhileCameraIsOn)
     }
 
+    @Test func persistsMicrophonePreference() {
+        let (monitor, defaults) = makeMonitor()
+        #expect(!monitor.preventSleepWhileMicrophoneIsOn)
+        monitor.preventSleepWhileMicrophoneIsOn = true
+        #expect(IdleMonitor(defaults: defaults).preventSleepWhileMicrophoneIsOn)
+    }
+
+    // MARK: - Camera
+
     @Test func cameraBlocksIdleSleepUntilItTurnsOff() {
         let (_, defaults) = makeMonitor()
         var cameraActive = true
@@ -61,31 +72,6 @@ struct IdleMonitorTests {
         #expect(sleepRequests == 0)
         #expect(!monitor.sleepIsPending)
         cameraActive = false
-        monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
-        #expect(sleepRequests == 0)
-        monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
-        #expect(sleepRequests == 1)
-    }
-
-    @Test func persistsMicrophonePreference() {
-        let (monitor, defaults) = makeMonitor()
-        #expect(!monitor.preventSleepWhileMicrophoneIsOn)
-        monitor.preventSleepWhileMicrophoneIsOn = true
-        #expect(IdleMonitor(defaults: defaults).preventSleepWhileMicrophoneIsOn)
-    }
-
-    @Test func microphoneBlocksIdleSleepUntilItTurnsOff() {
-        let (_, defaults) = makeMonitor()
-        var microphoneActive = true
-        var sleepRequests = 0
-        let monitor = IdleMonitor(
-            defaults: defaults, cameraIsOn: { false }, microphoneIsOn: { microphoneActive },
-            requestSleep: { sleepRequests += 1 })
-        monitor.preventSleepWhileMicrophoneIsOn = true
-        monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
-        #expect(sleepRequests == 0)
-        #expect(!monitor.sleepIsPending)
-        microphoneActive = false
         monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
         #expect(sleepRequests == 0)
         monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
@@ -106,6 +92,70 @@ struct IdleMonitorTests {
         monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
         #expect(sleepRequests == 1)
     }
+
+    @Test func cameraDoesNotBlockWhenPreferenceIsOff() {
+        let (_, defaults) = makeMonitor()
+        var sleepRequests = 0
+        let monitor = IdleMonitor(
+            defaults: defaults, cameraIsOn: { true },
+            requestSleep: { sleepRequests += 1 })
+        monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
+        #expect(sleepRequests == 1)
+    }
+
+    @Test func cameraPreferenceIgnoresMicrophone() {
+        let (_, defaults) = makeMonitor()
+        var sleepRequests = 0
+        let monitor = IdleMonitor(
+            defaults: defaults, cameraIsOn: { false }, microphoneIsOn: { true },
+            requestSleep: { sleepRequests += 1 })
+        monitor.preventSleepWhileCameraIsOn = true
+        monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
+        #expect(sleepRequests == 1)
+    }
+
+    @Test func manualSleepOverridesCameraPreference() {
+        let (_, defaults) = makeMonitor()
+        var sleepRequests = 0
+        let monitor = IdleMonitor(
+            defaults: defaults, cameraIsOn: { true },
+            requestSleep: { sleepRequests += 1 })
+        monitor.preventSleepWhileCameraIsOn = true
+        monitor.sleepNow()
+        #expect(sleepRequests == 1)
+    }
+
+    // MARK: - Microphone
+
+    @Test func microphoneBlocksIdleSleepUntilItTurnsOff() {
+        let (_, defaults) = makeMonitor()
+        var microphoneActive = true
+        var sleepRequests = 0
+        let monitor = IdleMonitor(
+            defaults: defaults, cameraIsOn: { false }, microphoneIsOn: { microphoneActive },
+            requestSleep: { sleepRequests += 1 })
+        monitor.preventSleepWhileMicrophoneIsOn = true
+        monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
+        #expect(sleepRequests == 0)
+        #expect(!monitor.sleepIsPending)
+        microphoneActive = false
+        monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
+        #expect(sleepRequests == 0)
+        monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
+        #expect(sleepRequests == 1)
+    }
+
+    @Test func microphoneDoesNotBlockWhenPreferenceIsOff() {
+        let (_, defaults) = makeMonitor()
+        var sleepRequests = 0
+        let monitor = IdleMonitor(
+            defaults: defaults, cameraIsOn: { false }, microphoneIsOn: { true },
+            requestSleep: { sleepRequests += 1 })
+        monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
+        #expect(sleepRequests == 1)
+    }
+
+    // MARK: - Camera and microphone
 
     @Test func mediaChangeWhileStillOnKeepsBlocking() {
         let (_, defaults) = makeMonitor()
@@ -146,47 +196,7 @@ struct IdleMonitorTests {
         #expect(microphoneSubscriptions == 1)
     }
 
-    @Test func microphoneDoesNotBlockWhenPreferenceIsOff() {
-        let (_, defaults) = makeMonitor()
-        var sleepRequests = 0
-        let monitor = IdleMonitor(
-            defaults: defaults, cameraIsOn: { false }, microphoneIsOn: { true },
-            requestSleep: { sleepRequests += 1 })
-        monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
-        #expect(sleepRequests == 1)
-    }
-
-    @Test func cameraPreferenceIgnoresMicrophone() {
-        let (_, defaults) = makeMonitor()
-        var sleepRequests = 0
-        let monitor = IdleMonitor(
-            defaults: defaults, cameraIsOn: { false }, microphoneIsOn: { true },
-            requestSleep: { sleepRequests += 1 })
-        monitor.preventSleepWhileCameraIsOn = true
-        monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
-        #expect(sleepRequests == 1)
-    }
-
-    @Test func cameraDoesNotBlockWhenPreferenceIsOff() {
-        let (_, defaults) = makeMonitor()
-        var sleepRequests = 0
-        let monitor = IdleMonitor(
-            defaults: defaults, cameraIsOn: { true },
-            requestSleep: { sleepRequests += 1 })
-        monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
-        #expect(sleepRequests == 1)
-    }
-
-    @Test func manualSleepOverridesCameraPreference() {
-        let (_, defaults) = makeMonitor()
-        var sleepRequests = 0
-        let monitor = IdleMonitor(
-            defaults: defaults, cameraIsOn: { true },
-            requestSleep: { sleepRequests += 1 })
-        monitor.preventSleepWhileCameraIsOn = true
-        monitor.sleepNow()
-        #expect(sleepRequests == 1)
-    }
+    // MARK: - Activity events
 
     @Test func countsMovementClicksAndKeyPresses() {
         let counted = Set(IdleMonitor.activityEvents)
