@@ -1,6 +1,6 @@
 import ProjectDescription
 
-let signingSettings: Settings = .settings(base: [
+let baseSettings: Settings = .settings(base: [
     "DEVELOPMENT_TEAM": "TZWTJP2JSN",
     "CODE_SIGN_STYLE": "Automatic",
     "CODE_SIGN_IDENTITY": "Apple Development",
@@ -32,7 +32,7 @@ let project = Project(
                 "Rest/Resources",
             ],
             dependencies: [.external(name: "Sparkle"), .external(name: "IsCameraOn")],
-            settings: signingSettings
+            settings: baseSettings
         ),
         .target(
             name: "RestTests",
@@ -45,7 +45,7 @@ let project = Project(
                 "Rest/Tests"
             ],
             dependencies: [.target(name: "Rest")],
-            settings: signingSettings
+            settings: baseSettings
         ),
     ]
 )
