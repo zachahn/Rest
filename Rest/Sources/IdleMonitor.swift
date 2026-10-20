@@ -55,6 +55,14 @@ final class IdleMonitor {
         }
     }
 
+    var preventSleepWhileMicrophoneIsOn: Bool {
+        didSet {
+            defaults.set(
+                preventSleepWhileMicrophoneIsOn, forKey: Key.preventSleepWhileMicrophoneIsOn)
+            updateTimer()
+        }
+    }
+
     /// Clamping happens in this setter rather than in a `didSet` on the storage.
     /// `@Observable` turns a stored property into a computed one over `_name`,
     /// so a `didSet` that assigns to its own property re-enters its own setter
@@ -80,32 +88,40 @@ final class IdleMonitor {
     private var countdownStart = Date()
     private var timer: Timer?
     private var hasStarted = false
+    private var mediaWasKeepingAwake = false
 
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let cameraIsOn: () -> Bool
+    @ObservationIgnored private let microphoneIsOn: () -> Bool
     @ObservationIgnored private let requestSleep: () -> Void
 
     private enum Key {
         static let threshold = "idleThresholdSeconds"
         static let isEnabled = "isEnabled"
         static let preventSleepWhileCameraIsOn = "preventSleepWhileCameraIsOn"
+        static let preventSleepWhileMicrophoneIsOn = "preventSleepWhileMicrophoneIsOn"
     }
 
     init(
         defaults: UserDefaults = .standard,
         cameraIsOn: @escaping () -> Bool = { isCameraOn(includeExternal: true) },
+        microphoneIsOn: @escaping () -> Bool = { Microphone.isOn() },
         requestSleep: @escaping () -> Void = { SystemSleep.request() }
     ) {
         defaults.register(defaults: [
             Key.threshold: 600.0,
             Key.isEnabled: true,
             Key.preventSleepWhileCameraIsOn: false,
+            Key.preventSleepWhileMicrophoneIsOn: false,
         ])
         self.defaults = defaults
         self.cameraIsOn = cameraIsOn
+        self.microphoneIsOn = microphoneIsOn
         self.requestSleep = requestSleep
         isEnabled = defaults.bool(forKey: Key.isEnabled)
         preventSleepWhileCameraIsOn = defaults.bool(forKey: Key.preventSleepWhileCameraIsOn)
+        preventSleepWhileMicrophoneIsOn = defaults.bool(
+            forKey: Key.preventSleepWhileMicrophoneIsOn)
         storedThresholdSeconds = max(
             Self.minimumInterval, defaults.double(forKey: Key.threshold))
     }
@@ -156,6 +172,7 @@ final class IdleMonitor {
     func restartCountdown() {
         countdownStart = Date()
         sleepIsPending = false
+        mediaWasKeepingAwake = false
         updateTimer()
     }
 
@@ -167,20 +184,32 @@ final class IdleMonitor {
 
     private func tick() {
         guard isEnabled, !sleepIsPending else { return }
-        let idleSeconds = measureIdleSeconds()
-        checkForIdleSleep(idleSeconds: idleSeconds)
+        checkForIdleSleep(idleSeconds: measureIdleSeconds())
         guard !sleepIsPending else { return }
         // Input may have reset the hardware idle clock since the last check.
         // When the camera blocks sleep, retry periodically so turning it off
         // does not leave the Mac awake for another full threshold interval.
-        let remaining = thresholdSeconds - idleSeconds
+        let remaining = thresholdSeconds - measureIdleSeconds()
         scheduleCheck(after: remaining > 0 ? remaining : 5)
     }
 
     func checkForIdleSleep(idleSeconds: TimeInterval) {
         guard isEnabled, !sleepIsPending, idleSeconds >= thresholdSeconds else { return }
-        guard !preventSleepWhileCameraIsOn || !cameraIsOn() else { return }
+        if mediaIsKeepingAwake() {
+            mediaWasKeepingAwake = true
+            return
+        }
+        if mediaWasKeepingAwake {
+            mediaWasKeepingAwake = false
+            countdownStart = Date()
+            return
+        }
         sleepNow()
+    }
+
+    private func mediaIsKeepingAwake() -> Bool {
+        (preventSleepWhileCameraIsOn && cameraIsOn())
+            || (preventSleepWhileMicrophoneIsOn && microphoneIsOn())
     }
 
     private func measureIdleSeconds() -> TimeInterval {

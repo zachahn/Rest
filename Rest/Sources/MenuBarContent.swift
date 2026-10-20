@@ -11,6 +11,8 @@ struct MenuBarContent: View {
 
         Toggle("Keep Awake While Camera Is On", isOn: $monitor.preventSleepWhileCameraIsOn)
 
+        Toggle("Keep Awake While Mic Is On", isOn: $monitor.preventSleepWhileMicrophoneIsOn)
+
         Picker("Sleep After", selection: $monitor.thresholdSeconds) {
             ForEach(intervalOptions, id: \.self) { interval in
                 Text(formatDuration(interval)).tag(interval)

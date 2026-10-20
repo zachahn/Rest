@@ -62,6 +62,53 @@ struct IdleMonitorTests {
         #expect(!monitor.sleepIsPending)
         cameraActive = false
         monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
+        #expect(sleepRequests == 0)
+        monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
+        #expect(sleepRequests == 1)
+    }
+
+    @Test func persistsMicrophonePreference() {
+        let (monitor, defaults) = makeMonitor()
+        #expect(!monitor.preventSleepWhileMicrophoneIsOn)
+        monitor.preventSleepWhileMicrophoneIsOn = true
+        #expect(IdleMonitor(defaults: defaults).preventSleepWhileMicrophoneIsOn)
+    }
+
+    @Test func microphoneBlocksIdleSleepUntilItTurnsOff() {
+        let (_, defaults) = makeMonitor()
+        var microphoneActive = true
+        var sleepRequests = 0
+        let monitor = IdleMonitor(
+            defaults: defaults, cameraIsOn: { false }, microphoneIsOn: { microphoneActive },
+            requestSleep: { sleepRequests += 1 })
+        monitor.preventSleepWhileMicrophoneIsOn = true
+        monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
+        #expect(sleepRequests == 0)
+        #expect(!monitor.sleepIsPending)
+        microphoneActive = false
+        monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
+        #expect(sleepRequests == 0)
+        monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
+        #expect(sleepRequests == 1)
+    }
+
+    @Test func microphoneDoesNotBlockWhenPreferenceIsOff() {
+        let (_, defaults) = makeMonitor()
+        var sleepRequests = 0
+        let monitor = IdleMonitor(
+            defaults: defaults, cameraIsOn: { false }, microphoneIsOn: { true },
+            requestSleep: { sleepRequests += 1 })
+        monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
+        #expect(sleepRequests == 1)
+    }
+
+    @Test func cameraPreferenceIgnoresMicrophone() {
+        let (_, defaults) = makeMonitor()
+        var sleepRequests = 0
+        let monitor = IdleMonitor(
+            defaults: defaults, cameraIsOn: { false }, microphoneIsOn: { true },
+            requestSleep: { sleepRequests += 1 })
+        monitor.preventSleepWhileCameraIsOn = true
         monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
         #expect(sleepRequests == 1)
     }
