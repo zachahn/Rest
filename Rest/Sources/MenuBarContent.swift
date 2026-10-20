@@ -57,3 +57,17 @@ private struct CheckForUpdatesButton: View {
             .onReceive(updater.publisher(for: \.canCheckForUpdates)) { canCheck = $0 }
     }
 }
+
+/// Formats a duration as `1h 5m`, `12m 30s`, `45s`.
+func formatDuration(_ seconds: TimeInterval) -> String {
+    let total = Int(seconds.rounded())
+    let hours = total / 3600
+    let minutes = (total % 3600) / 60
+    let secs = total % 60
+
+    var parts: [String] = []
+    if hours > 0 { parts.append("\(hours)h") }
+    if minutes > 0 { parts.append("\(minutes)m") }
+    if secs > 0 || parts.isEmpty { parts.append("\(secs)s") }
+    return parts.joined(separator: " ")
+}

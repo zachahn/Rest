@@ -163,62 +163,6 @@ final class IdleMonitor {
         updateTimer()
     }
 
-    private func updateCameraObservation() {
-        cameraObservation?.cancel()
-        cameraObservation =
-            hasStarted && preventSleepWhileCameraIsOn ? observe(cameraChanges()) : nil
-    }
-
-    private func updateMicrophoneObservation() {
-        microphoneObservation?.cancel()
-        microphoneObservation =
-            hasStarted && preventSleepWhileMicrophoneIsOn ? observe(microphoneChanges()) : nil
-    }
-
-    private func observe(_ changes: AsyncStream<Bool>) -> Task<Void, Never> {
-        Task { [weak self] in
-            for await _ in changes {
-                self?.mediaStatusChanged()
-            }
-        }
-    }
-
-    func mediaStatusChanged() {
-        guard mediaWasKeepingAwake, !mediaIsKeepingAwake() else { return }
-        mediaWasKeepingAwake = false
-        countdownStart = Date()
-        updateTimer()
-    }
-
-    private func updateTimer() {
-        stopTimer()
-        guard hasStarted, isEnabled, !sleepIsPending else { return }
-        tick()
-    }
-
-    private func stopTimer() {
-        timer?.invalidate()
-        timer = nil
-    }
-
-    private func scheduleCheck(after seconds: TimeInterval) {
-        stopTimer()
-        let timer = Timer(timeInterval: max(1, seconds), repeats: false) { [weak self] _ in
-            Task { @MainActor in self?.tick() }
-        }
-        // .common so the check still runs while a menu is tracking.
-        RunLoop.main.add(timer, forMode: .common)
-        self.timer = timer
-    }
-
-    /// Give the user a fresh, full interval starting now.
-    func restartCountdown() {
-        countdownStart = Date()
-        sleepIsPending = false
-        mediaWasKeepingAwake = false
-        updateTimer()
-    }
-
     func sleepNow() {
         sleepIsPending = true
         stopTimer()
@@ -261,18 +205,60 @@ final class IdleMonitor {
             .min() ?? 0
         return min(sinceLastInput, Date().timeIntervalSince(countdownStart))
     }
-}
 
-/// Formats a duration as `1h 5m`, `12m 30s`, `45s`.
-func formatDuration(_ seconds: TimeInterval) -> String {
-    let total = Int(seconds.rounded())
-    let hours = total / 3600
-    let minutes = (total % 3600) / 60
-    let secs = total % 60
+    /// Give the user a fresh, full interval starting now.
+    private func restartCountdown() {
+        countdownStart = Date()
+        sleepIsPending = false
+        mediaWasKeepingAwake = false
+        updateTimer()
+    }
 
-    var parts: [String] = []
-    if hours > 0 { parts.append("\(hours)h") }
-    if minutes > 0 { parts.append("\(minutes)m") }
-    if secs > 0 || parts.isEmpty { parts.append("\(secs)s") }
-    return parts.joined(separator: " ")
+    private func updateTimer() {
+        stopTimer()
+        guard hasStarted, isEnabled, !sleepIsPending else { return }
+        tick()
+    }
+
+    private func stopTimer() {
+        timer?.invalidate()
+        timer = nil
+    }
+
+    private func scheduleCheck(after seconds: TimeInterval) {
+        stopTimer()
+        let timer = Timer(timeInterval: max(1, seconds), repeats: false) { [weak self] _ in
+            Task { @MainActor in self?.tick() }
+        }
+        // .common so the check still runs while a menu is tracking.
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
+    }
+
+    private func updateCameraObservation() {
+        cameraObservation?.cancel()
+        cameraObservation =
+            hasStarted && preventSleepWhileCameraIsOn ? observe(cameraChanges()) : nil
+    }
+
+    private func updateMicrophoneObservation() {
+        microphoneObservation?.cancel()
+        microphoneObservation =
+            hasStarted && preventSleepWhileMicrophoneIsOn ? observe(microphoneChanges()) : nil
+    }
+
+    private func observe(_ changes: AsyncStream<Bool>) -> Task<Void, Never> {
+        Task { [weak self] in
+            for await _ in changes {
+                self?.mediaStatusChanged()
+            }
+        }
+    }
+
+    func mediaStatusChanged() {
+        guard mediaWasKeepingAwake, !mediaIsKeepingAwake() else { return }
+        mediaWasKeepingAwake = false
+        countdownStart = Date()
+        updateTimer()
+    }
 }

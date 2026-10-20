@@ -10,7 +10,7 @@ struct IdleMonitorTests {
     private func makeMonitor() -> (IdleMonitor, UserDefaults) {
         let suite = "RestTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
-        return (IdleMonitor(defaults: defaults), defaults)
+        return (IdleMonitor(defaults: defaults, requestSleep: {}), defaults)
     }
 
     @Test func clampsThresholdToMinimum() {
@@ -146,12 +146,6 @@ struct IdleMonitorTests {
         #expect(microphoneSubscriptions == 1)
     }
 
-    @Test func microphoneStatusChangesEmitsCurrentStatus() async {
-        var iterator = Microphone.statusChanges().makeAsyncIterator()
-        let first = await iterator.next()
-        #expect(first == Microphone.isOn())
-    }
-
     @Test func microphoneDoesNotBlockWhenPreferenceIsOff() {
         let (_, defaults) = makeMonitor()
         var sleepRequests = 0
@@ -203,7 +197,22 @@ struct IdleMonitorTests {
         #expect(counted.contains(.keyDown))
         #expect(!counted.contains(.scrollWheel))
     }
+}
 
+extension Tag {
+    @Tag static var hardware: Self
+}
+
+@MainActor
+struct MicrophoneTests {
+    @Test(.tags(.hardware)) func statusChangesEmitsCurrentStatus() async {
+        var iterator = Microphone.statusChanges().makeAsyncIterator()
+        let first = await iterator.next()
+        #expect(first == Microphone.isOn())
+    }
+}
+
+struct FormatDurationTests {
     @Test(arguments: [
         (0.0, "0s"), (45.0, "45s"), (750.0, "12m 30s"), (3900.0, "1h 5m"),
     ])
