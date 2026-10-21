@@ -29,6 +29,11 @@ enum Microphone {
         mScope: kAudioObjectPropertyScopeGlobal,
         mElement: kAudioObjectPropertyElementMain)
 
+    private static let inputDevicesAddress = AudioObjectPropertyAddress(
+        mSelector: kAudioProcessPropertyDevices,
+        mScope: kAudioObjectPropertyScopeInput,
+        mElement: kAudioObjectPropertyElementMain)
+
     private static func audioClientProcessIDs() -> [AudioObjectID] {
         var address = processListAddress
         var size: UInt32 = 0
@@ -104,7 +109,7 @@ enum Microphone {
             let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
                 MainActor.assumeIsolated { self?.emitStatus() }
             }
-            var address = Microphone.isRunningInputAddress
+            var address = Microphone.inputDevicesAddress
             if AudioObjectAddPropertyListenerBlock(processID, &address, .main, listener) == noErr {
                 processListeners[processID] = listener
             }
@@ -112,7 +117,7 @@ enum Microphone {
 
         private func stopListening(to processID: AudioObjectID) {
             guard let listener = processListeners.removeValue(forKey: processID) else { return }
-            var address = Microphone.isRunningInputAddress
+            var address = Microphone.inputDevicesAddress
             AudioObjectRemovePropertyListenerBlock(processID, &address, .main, listener)
         }
 
