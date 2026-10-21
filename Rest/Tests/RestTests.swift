@@ -93,6 +93,19 @@ struct IdleMonitorTests {
         #expect(sleepRequests == 1)
     }
 
+    @Test func turningOffCameraPreferenceDoesNotGrantAnExtraInterval() {
+        let (_, defaults) = makeMonitor()
+        var sleepRequests = 0
+        let monitor = IdleMonitor(
+            defaults: defaults, cameraIsOn: { true },
+            requestSleep: { sleepRequests += 1 })
+        monitor.preventSleepWhileCameraIsOn = true
+        monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
+        monitor.preventSleepWhileCameraIsOn = false
+        monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
+        #expect(sleepRequests == 1)
+    }
+
     @Test func cameraDoesNotBlockWhenPreferenceIsOff() {
         let (_, defaults) = makeMonitor()
         var sleepRequests = 0
@@ -141,6 +154,19 @@ struct IdleMonitorTests {
         microphoneActive = false
         monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
         #expect(sleepRequests == 0)
+        monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
+        #expect(sleepRequests == 1)
+    }
+
+    @Test func turningOffMicrophonePreferenceDoesNotGrantAnExtraInterval() {
+        let (_, defaults) = makeMonitor()
+        var sleepRequests = 0
+        let monitor = IdleMonitor(
+            defaults: defaults, cameraIsOn: { false }, microphoneIsOn: { true },
+            requestSleep: { sleepRequests += 1 })
+        monitor.preventSleepWhileMicrophoneIsOn = true
+        monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
+        monitor.preventSleepWhileMicrophoneIsOn = false
         monitor.checkForIdleSleep(idleSeconds: monitor.thresholdSeconds)
         #expect(sleepRequests == 1)
     }

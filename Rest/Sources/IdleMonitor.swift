@@ -52,7 +52,7 @@ final class IdleMonitor {
         didSet {
             defaults.set(preventSleepWhileCameraIsOn, forKey: Key.preventSleepWhileCameraIsOn)
             updateCameraObservation()
-            updateTimer()
+            mediaStatusChanged()
         }
     }
 
@@ -61,7 +61,7 @@ final class IdleMonitor {
             defaults.set(
                 preventSleepWhileMicrophoneIsOn, forKey: Key.preventSleepWhileMicrophoneIsOn)
             updateMicrophoneObservation()
-            updateTimer()
+            mediaStatusChanged()
         }
     }
 
@@ -264,9 +264,10 @@ final class IdleMonitor {
     }
 
     func mediaStatusChanged() {
-        guard mediaWasKeepingAwake, !mediaIsKeepingAwake() else { return }
-        mediaWasKeepingAwake = false
-        countdownStart = Date()
+        if mediaWasKeepingAwake, !mediaIsKeepingAwake() {
+            mediaWasKeepingAwake = false
+            countdownStart = Date()
+        }
         updateTimer()
     }
 }
